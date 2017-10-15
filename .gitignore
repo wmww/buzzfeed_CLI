@@ -1,2 +1,4 @@
 /target/
 **/*.rs.bk
+
+news_api_key.txt
