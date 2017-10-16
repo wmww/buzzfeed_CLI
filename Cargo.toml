@@ -4,4 +4,6 @@ version = "0.1.0"
 authors = ["William W Wold <wilcoze@gmail.com>"]
 
 [dependencies]
-hyper = "0.11.6"
+futures = "0.1"
+hyper = "0.11"
+tokio-core = "0.1"
