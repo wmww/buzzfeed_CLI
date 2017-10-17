@@ -36,7 +36,7 @@ impl JsonValue {
                 indent,
             ),
             &JsonValue::Array(ref v) => format!(
-                "[{}]",
+                "[{}\n{}]",
                 v.iter().fold(String::new(), |sum, x| {
                     let next = format!("{}{}", indent, next_indent);
                     format!(
@@ -46,7 +46,8 @@ impl JsonValue {
                         next,
                         x.to_string_with_indent(&next, next_indent),
                     )
-                })
+                }),
+                indent,
             ),
             &JsonValue::Number(ref n) => format!("{}", n.to_string()),
             &JsonValue::String(ref s) => format!("\"{}\"", s),
@@ -233,7 +234,7 @@ fn next_token(mut iter: Chars) -> (JsonToken, Chars) {
             JsonToken::String(data.0)
         },
         Some(c) if c.is_alphabetic() => {
-            let mut text = String::new();
+            let mut text = c.to_string();
             let mut next = iter.clone();
             loop {
                 match next.next() {
