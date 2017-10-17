@@ -1,5 +1,9 @@
 extern crate reqwest;
+
+mod wmww_json;
+
 use std::io::Read;
+use wmww_json::{parse_json};
 
 fn main() {
     let news_api_key = include!("../news_api_key.txt");
@@ -9,4 +13,5 @@ fn main() {
     let mut content = String::new();
     resp.read_to_string(&mut content).expect("reading to string fucked up");
     println!("content: {}", content);
+    let json = parse_json(content);
 }
