@@ -14,10 +14,40 @@ pub enum JsonValue {
 }
 
 impl JsonValue {
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
+        self.to_string_with_indent("", "  ")
+    }
+
+    fn to_string_with_indent(&self, indent: &str, next_indent: &str) -> String {
         match self {
-            &JsonValue::Object(ref o) => format!("{{{}}}", o.iter().fold(String::new(), |sum, x| format!("{}{}{}: {}", sum, if sum == String::from("") { "" } else { ", " }, x.0, x.1.to_string()))),
-            &JsonValue::Array(ref v) => format!("[{}]", v.iter().fold(String::new(), |sum, x| format!("{}{}{}", sum, if sum == String::from("") { "" } else { ", " }, x.to_string()))),
+            &JsonValue::Object(ref o) => format!(
+                "{{{}\n{}}}",
+                o.iter().fold(String::new(), |sum, x| {
+                    let next = format!("{}{}", indent, next_indent);
+                    format!(
+                        "{}{}\n{}{}: {}",
+                        sum,
+                        if sum == String::from("") { "" } else { ", " },
+                        next,
+                        x.0,
+                        x.1.to_string_with_indent(&next, next_indent),
+                    )
+                }),
+                indent,
+            ),
+            &JsonValue::Array(ref v) => format!(
+                "[{}]",
+                v.iter().fold(String::new(), |sum, x| {
+                    let next = format!("{}{}", indent, next_indent);
+                    format!(
+                        "{}{}\n{}{}",
+                        sum,
+                        if sum == String::from("") { "" } else { ", " },
+                        next,
+                        x.to_string_with_indent(&next, next_indent),
+                    )
+                })
+            ),
             &JsonValue::Number(ref n) => format!("{}", n.to_string()),
             &JsonValue::String(ref s) => format!("\"{}\"", s),
             &JsonValue::Bool(ref b) => format!("{}", if *b { "true" } else { "false" }),
@@ -124,19 +154,19 @@ fn parse_json_number(mut iter: Chars) -> (f64, Chars) {
     let (i_part, negative, mut next) = parse_i(iter);
     iter = next.clone();
     let mut number = i_part as f64;
-    if let Some(c) = next.next() {
-        if c == '.' {
-            let (decimal_part, mut next) = parse_decimal(next);
-            number += decimal_part * (if negative { -1.0 } else { 1.0 });
-            iter = next.clone();
-            if let Some(c) = next.next() {
-                if c == 'e' || c == 'E' {
-                    let (e, _, next) = parse_i(next);
-                    number *= 10f64.powi(e) as f64;
-                    iter = next;
-                }
-            }
-        }
+    if let Some('.') = next.next() {
+        let (decimal_part, next) = parse_decimal(next);
+        number += decimal_part * (if negative { -1.0 } else { 1.0 });
+        iter = next.clone();
+    }
+    let mut next = iter.clone();
+    match next.next() {
+        Some(c) if c == 'e' || c == 'E' => {
+            let (e, _, next) = parse_i(next);
+            number *= 10f64.powi(e) as f64;
+            iter = next;
+        },
+        _ => (),
     }
     return (number, iter);
 }
@@ -161,7 +191,7 @@ fn parse_json_string(mut iter: Chars) -> (String, Chars) {
                     Some('n') => '\n',
                     Some('r') => '\r',
                     Some('t') => '\t',
-                    Some(_) => '?',
+                    Some(_) => '�', // standard unicode replacement character
                     None => break,
                 };
                 text.push(c);
@@ -192,7 +222,7 @@ fn next_token(mut iter: Chars) -> (JsonToken, Chars) {
         Some(']') => JsonToken::ArrayClose,
         Some(',') => JsonToken::Comma,
         Some(':') => JsonToken::Colon,
-        Some(c) if c.is_digit(10) || c == '+' || c == '-' => {
+        Some(c) if c.is_digit(10) || c == '-' => { // + intentionally excluded
             let data = parse_json_number(prev);
             iter = data.1;
             JsonToken::Number(data.0)
@@ -202,22 +232,22 @@ fn next_token(mut iter: Chars) -> (JsonToken, Chars) {
             iter = data.1;
             JsonToken::String(data.0)
         },
-        Some(c) => {
+        Some(c) if c.is_alphabetic() => {
             let mut text = String::new();
-            text.push(c);
+            let mut next = iter.clone();
             loop {
-                let prev = iter.clone();
-                let c = iter.next();
-                if c.is_none() || !c.unwrap().is_alphabetic() {
-                    iter = prev;
-                    break;
-                } else {
-                    text.push(c.unwrap());
+                match next.next() {
+                    Some(c) if c.is_alphabetic() => {
+                        text.push(c);
+                        iter = next.clone();
+                    },
+                    _ => break,
                 }
             }
             JsonToken::Identifier(text)
         },
         None => JsonToken::End,
+        Some(c) => JsonToken::Invalid(c.to_string()),
     }, iter)
 }
 
@@ -227,7 +257,7 @@ fn parse_json_array(iter: Chars) -> (Vec<JsonValue>, Chars) {
     match start_token {
         JsonToken::ArrayOpen => (),
         _ => {
-            data.push(JsonValue::Invalid("bad array start character".to_string()));
+            data.push(JsonValue::Invalid("bad array start character".to_owned()));
             return (data, iter)
         },
     }
@@ -255,7 +285,7 @@ fn parse_json_object(iter: Chars) -> (HashMap<String, JsonValue>, Chars) {
     match start_token {
         JsonToken::ObjectOpen => (),
         _ => {
-            data.insert("INVALID MAP".to_string(), JsonValue::Invalid("bad map start character".to_string()));
+            data.insert("INVALID MAP".to_owned(), JsonValue::Invalid("bad map start character".to_owned()));
             return (data, iter);
         },
     }
@@ -276,7 +306,7 @@ fn parse_json_object(iter: Chars) -> (HashMap<String, JsonValue>, Chars) {
         match colon {
             JsonToken::Colon => (),
             _ => {
-                data.insert("INVALID".to_string(), JsonValue::Invalid(colon.to_string()));
+                data.insert("INVALID".to_owned(), JsonValue::Invalid(colon.to_string()));
                 iter = next;
                 continue;
             }
@@ -321,6 +351,6 @@ fn parse_json_value(iter: Chars) -> (JsonValue, Chars) {
     }
 }
 
-pub fn parse_json(json: &str) -> (JsonValue, Chars) {
-    parse_json_value(json.chars())
+pub fn parse_json(json: &str) -> JsonValue {
+    parse_json_value(json.chars()).0
 }

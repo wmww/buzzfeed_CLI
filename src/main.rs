@@ -11,6 +11,7 @@ fn main() {
     assert!(resp.status().is_success());
     let mut content = String::new();
     resp.read_to_string(&mut content).expect("reading to string fucked up");
-    println!("content: {}", content);
+    //println!("content: {}", content);
     let json = parse_json(&content);
+    println!("content: {}", json.to_string());
 }
