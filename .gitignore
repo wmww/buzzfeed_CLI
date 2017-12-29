@@ -1,4 +1,7 @@
 /target/
 **/*.rs.bk
 
+# Gnome Builder
+.buildconfig
+
 news_api_key.txt

@@ -14,4 +14,17 @@ fn main() {
     //println!("content: {}", content);
     let json = parse_json(&content);
     println!("content: {}", json.to_string());
+    if let JsonValue::Object(ref obj) = json {
+        if let Some(&JsonValue::Array(ref array)) = obj.get("articles") {
+            println!("has articles");
+            for elem in array {
+                if let &JsonValue::Object(ref item) = elem {
+                    if let Some(&JsonValue::String(ref title)) = item.get("title") {
+                        println!("{}\n\n", title);
+                    }
+                }
+            }
+        }
+    }
 }
+
